@@ -4,6 +4,8 @@ A minimal iOS sample project that demonstrates **real-time 3D pose estimation of
 
 Hold a printed QR code in front of your iPhone's front camera and watch 3D coordinate axes track the code's position and orientation in real time.
 
+[![Demo](https://img.youtube.com/vi/u3uf9mGnBHQ/maxresdefault.jpg)](https://youtu.be/u3uf9mGnBHQ)
+
 ## What makes this interesting
 
 The core of this project is a **pure Swift PnP solver** (`PnPSolver.swift`) that computes the full 6-DoF pose (position + orientation) of a planar target from its four corner points. The pipeline:
