@@ -212,12 +212,19 @@ class QRTracker {
         xNode.position.x = Float(axisLength / 2)
         root.addChildNode(xNode)
 
-        // Y axis — Green
+        // Y axis — Green (with arrowhead to indicate "up")
         let yCyl = SCNCylinder(radius: axisRadius, height: axisLength)
         yCyl.firstMaterial?.diffuse.contents = UIColor.green
         let yNode = SCNNode(geometry: yCyl)
         yNode.position.y = Float(axisLength / 2)
         root.addChildNode(yNode)
+
+        let arrowHeight: CGFloat = 0.008
+        let arrow = SCNCone(topRadius: 0, bottomRadius: axisRadius * 3, height: arrowHeight)
+        arrow.firstMaterial?.diffuse.contents = UIColor.green
+        let arrowNode = SCNNode(geometry: arrow)
+        arrowNode.position.y = Float(axisLength) + Float(arrowHeight / 2)
+        root.addChildNode(arrowNode)
 
         // Z axis — Blue
         let zCyl = SCNCylinder(radius: axisRadius, height: axisLength)
@@ -254,29 +261,44 @@ class QRTracker {
             simd_float2(-halfSize,  halfSize),
         ]
 
-        // KNOWN BUG: VNBarcodeObservation swaps topRight <-> bottomLeft
-        let correctedTL = observation.topLeft
-        let correctedTR = observation.bottomLeft
-        let correctedBR = observation.bottomRight
-        let correctedBL = observation.topRight
-
         // .leftMirrored (EXIF 5): bufU = (1-visionY)*W, bufV = visionX*H
         func toBufPx(_ p: CGPoint) -> simd_float2 {
             simd_float2(Float(1.0 - p.y) * Float(imageWidth),
                         Float(p.x) * Float(imageHeight))
         }
-        let imgPts: [simd_float2] = [
-            toBufPx(correctedTL),
-            toBufPx(correctedTR),
-            toBufPx(correctedBR),
-            toBufPx(correctedBL),
+
+        // VNBarcodeObservation corner labels can be inconsistent.
+        // Try both the swapped and original orderings and pick the one
+        // with lower reprojection error.
+        let orderings: [[(CGPoint)]] = [
+            // Ordering A: swap topRight <-> bottomLeft (known Vision bug)
+            [observation.topLeft, observation.bottomLeft, observation.bottomRight, observation.topRight],
+            // Ordering B: use labels as-is
+            [observation.topLeft, observation.topRight, observation.bottomRight, observation.bottomLeft],
         ]
 
-        guard let pnp = solver.solve(imagePoints: imgPts,
-                                         objectPoints: objPts,
-                                         intrinsics: cameraIntrinsics) else {
-            return nil
+        var bestPnP: (rotation: simd_float3x3, translation: simd_float3)?
+        var bestError: Float = .greatestFiniteMagnitude
+        var bestImgPts: [simd_float2] = []
+
+        for ordering in orderings {
+            let pts = ordering.map { toBufPx($0) }
+            guard let result = solver.solve(imagePoints: pts,
+                                            objectPoints: objPts,
+                                            intrinsics: cameraIntrinsics) else { continue }
+            let err = solver.reprojectionError(imagePoints: pts,
+                                               objectPoints: objPts,
+                                               rotation: result.rotation,
+                                               translation: result.translation,
+                                               intrinsics: cameraIntrinsics)
+            if err < bestError {
+                bestError = err
+                bestPnP = result
+                bestImgPts = pts
+            }
         }
+
+        guard let pnp = bestPnP else { return nil }
 
         // Convert intrinsic camera frame -> ARKit camera frame
         let F = simd_float3x3(diagonal: simd_float3(1, -1, -1))
@@ -304,12 +326,12 @@ class QRTracker {
         let sy = sqrt(rm.columns.0.x * rm.columns.0.x + rm.columns.0.y * rm.columns.0.y)
         let rotX: Float, rotY: Float, rotZ: Float
         if sy > 1e-6 {
-            rotX = atan2(rm.columns.2.y, rm.columns.2.z)
-            rotY = atan2(-rm.columns.2.x, sy)
+            rotX = -atan2(rm.columns.2.y, rm.columns.2.z)
+            rotY = -atan2(-rm.columns.2.x, sy)
             rotZ = atan2(rm.columns.0.y, rm.columns.0.x)
         } else {
-            rotX = atan2(-rm.columns.1.z, rm.columns.1.y)
-            rotY = atan2(-rm.columns.2.x, sy)
+            rotX = -atan2(-rm.columns.1.z, rm.columns.1.y)
+            rotY = -atan2(-rm.columns.2.x, sy)
             rotZ = 0
         }
 

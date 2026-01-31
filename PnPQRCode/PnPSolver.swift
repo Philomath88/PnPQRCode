@@ -204,6 +204,31 @@ nonisolated class PnPSolver {
         return simd_normalize(avg)
     }
 
+    /// Compute mean reprojection error (pixels²) for a given pose.
+    func reprojectionError(imagePoints: [simd_float2],
+                           objectPoints: [simd_float2],
+                           rotation: simd_float3x3,
+                           translation: simd_float3,
+                           intrinsics: simd_float3x3) -> Float {
+        let fx = intrinsics[0][0]
+        let fy = intrinsics[1][1]
+        let cx = intrinsics[2][0]
+        let cy = intrinsics[2][1]
+
+        var total: Float = 0
+        for i in 0..<objectPoints.count {
+            let objPt = simd_float3(objectPoints[i].x, objectPoints[i].y, 0)
+            let camPt = rotation * objPt + translation
+            guard camPt.z > 1e-6 else { return Float.greatestFiniteMagnitude }
+            let projX = fx * camPt.x / camPt.z + cx
+            let projY = fy * camPt.y / camPt.z + cy
+            let dx = projX - imagePoints[i].x
+            let dy = projY - imagePoints[i].y
+            total += dx * dx + dy * dy
+        }
+        return total / Float(objectPoints.count)
+    }
+
     /// Clear smoothing history (call when QR tracking is lost).
     func reset() {
         quatHistory.removeAll()
