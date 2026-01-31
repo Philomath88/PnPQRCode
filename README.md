@@ -68,6 +68,12 @@ PnPQRCode/
 - **Single QR at a time** — while the code tracks multiple QR codes by payload, performance is best with one.
 - **LAPACK deprecation warnings** — the CLAPACK interface used by `sgesvd_` is deprecated. Functionally correct but produces compiler warnings.
 
+## Support
+
+If you find this useful, consider buying me a coffee:
+
+<a href="https://www.buymeacoffee.com/philomath88"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a coffee&emoji=☕&slug=philomath88&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" /></a>
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
